@@ -1,0 +1,25 @@
+# Dev requirements
+bumpversion==0.5.3
+coverage==4.3.4
+pep8==1.7.0
+pyflakes==1.5.0
+
+# Doc requirements
+Sphinx>=1.5.0
+sphinx_rtd_theme>=0.1.9
+docutils>=0.13.0
+sadisplay==0.4.6
+
+# App requirements
+aiohttp==1.2.0
+aiohttp-jinja2==0.12.0
+aiopg==0.13.0
+alembic==0.8.10
+argsrun==0.0.2
+injections==0.2.2
+jinja2==2.9.4
+msgpack-python==0.4.8
+trafaret==0.7.5
+PyYAML==3.12
+SQLAlchemy==1.1.5
+
