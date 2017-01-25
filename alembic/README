@@ -1,1 +1,1 @@
-Generic single-database configuration.
+Alembic SqlAlchemy migrations for Postgresql db of Maplocate project.
