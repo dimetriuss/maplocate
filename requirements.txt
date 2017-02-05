@@ -14,6 +14,7 @@ sadisplay==0.4.6
 aiohttp==1.2.0
 aiohttp-jinja2==0.12.0
 aiopg==0.13.0
+aioredis==0.3.0
 alembic==0.8.10
 argsrun==0.0.2
 injections==0.2.2
