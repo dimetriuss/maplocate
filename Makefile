@@ -16,6 +16,8 @@ clean:
 	pip freeze > .pip-freeze
 
 flake: .flake-alembic
+	pyflakes maplocate
+	pep8 maplocate
 
 .flake-alembic:
 	@echo "INSPECT CODE FOR PEP8"
