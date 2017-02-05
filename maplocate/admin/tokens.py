@@ -22,7 +22,7 @@ class TokensManager:
     redis = injections.depends(aioredis.RedisPool)
 
     ADMIN_TOKEN_PREFIX = 'tokens:admin:{token}'
-    ADMIN_TTL = 86400 * 3 # 3 days
+    ADMIN_TTL = 86400 * 3  # 3 days
     ADMIN_INDEX_PREFIX = 'index:admin'
 
     admin_session = t.Dict({
@@ -113,7 +113,7 @@ class TokensManager:
             while cursor:
                 # Return portions of sorted set and collect them in values
                 cursor, buffer = yield from conn.zscan(
-                    index_key, cursor, match = "{}:*".format(uid))
+                    index_key, cursor, match="{}:*".format(uid))
                 values.extend([val for val in buffer[::2]])
 
             for value in values:
