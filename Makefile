@@ -7,6 +7,13 @@ clean:
 	@echo "REMOVE PIP FREEZE, PYCACHE AND CLEAN DOCUMENTATION"
 	rm -f .pip-freeze
 	rm -rf 'find . -name __pycache__'
+	rm -f `find . -type f -name '*.py[co]' `
+	rm -f `find . -type f -name '*~' `
+	rm -f `find . -type f -name '.*~' `
+	rm -f `find . -type f -name '@*' `
+	rm -f `find . -type f -name '#*#' ` `
+	rm -f .coverage
+	rm -rf cover
 	make -C docs clean
 
 .pip-freeze: requirements.txt setup.py
@@ -16,8 +23,8 @@ clean:
 	pip freeze > .pip-freeze
 
 flake: .flake-alembic
-	pyflakes maplocate
-	pep8 maplocate
+	pyflakes maplocate tests
+	pep8 maplocate tests
 
 .flake-alembic:
 	@echo "INSPECT CODE FOR PEP8"
@@ -27,6 +34,19 @@ flake: .flake-alembic
 doc:
 	@echo "BUILD HTML DOCUMENTATION"
 	make -C docs html
+
+test: flake
+	@echo "RUN TESTS"
+	pytest tests
+
+vtest: flake
+	@echo "RUN TESTS IN VERBOSE MODE"
+	pytest -v tests
+
+cov cover coverage: flake
+	@echo "RUN TESTS WITH COVERAGE"
+	pytest --cov=maplocate tests
+	@echo "open file://`pwd`/coverage/index.html"
 
 migrate:
 	@echo "UPGRADE POSTGRESQL TO HEAD MIGRATION VERSION"
@@ -46,6 +66,9 @@ help:
 	@echo "  doc        to make documentation"
 	@echo "  migrate    to make upgrade of postgresql DB to head migration version"
 	@echo "  initdb     to make initialization of project postgresql DB"
+	@echo "  test       to make tests run"
+	@echo "  vtest      to make tests run with verbose mode turned on"
+	@echo "  cov        to make application coverage with tests"
 
-.PHONY: all setup flake doc migrate initdb help
+.PHONY: all setup flake doc migrate initdb help test vtest cov
 

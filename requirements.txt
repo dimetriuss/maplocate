@@ -10,6 +10,13 @@ sphinx_rtd_theme>=0.1.9
 docutils>=0.13.0
 sadisplay==0.4.6
 
+# Tests requirements
+pytest==3.0.6
+pytest-cov==2.4.0
+pytest-aiohttp==0.1.2
+pytest-sugar==0.8.0
+docker-py==1.10.6
+
 # App requirements
 aiohttp==1.2.0
 aiohttp-jinja2==0.12.0
