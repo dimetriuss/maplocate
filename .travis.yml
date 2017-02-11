@@ -1,0 +1,23 @@
+language: python
+
+python:
+  - "3.4"
+
+sudo: false
+
+install:
+  - pip install -r requirements.txt
+
+script:
+  - make test
+  - python setup.py check
+
+after_success:
+  - make cov
+
+cache: apt
+
+env:
+  matrix:
+    - PYTHONASYNCIODEBUG=1
+    - PYTHONASYNCIODEBUG=
