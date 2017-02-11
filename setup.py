@@ -25,6 +25,9 @@ setup(name='maplocate',
       platforms=['POSIX'],
       packages=find_packages(),
       include_package_data=True,
+      author='dimetriuss',
+      author_email='dimetriuss@gmail.com',
+      url='https://github.com/dimetriuss/maplocate',
       install_requires=install_requires,
       entry_points={
           'console_scripts': [
