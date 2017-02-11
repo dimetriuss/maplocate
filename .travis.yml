@@ -6,7 +6,7 @@ python:
 sudo: false
 
 install:
-  - piping install -r requirements.txt
+  - pip install -r requirements.txt
 
 script:
   - make test
