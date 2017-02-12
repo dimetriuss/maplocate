@@ -4,7 +4,7 @@ import aiopg
 import psycopg2
 import trafaret as t
 
-from sqlalchemy import select
+from sqlalchemy import select, join
 
 from maplocate.db import scheme as db
 from .base import BaseHandler
@@ -36,6 +36,8 @@ UpdateRoleForm = t.Dict({
     t.Key('permissions', optional=True): Permissions,
     t.Key('description', optional=True): t.String(max_length=64),
 })
+
+UpdateUserRolesForm = t.List(t.Int)
 
 
 @injections.has
@@ -193,13 +195,124 @@ class RolesHandler(BaseHandler):
             {'id': perm.name, 'group': group, 'description': perm.description}
             for perm, group in grouped_permissions]
 
+    @render_json
     @asyncio.coroutine
-    def get_user_roles(self):
-        pass
+    def get_user_roles(self, request):
+        """Get user roles.
+        Request: 'GET', '/admin/users/{uid}/roles'
+        """
 
+        session = yield from self.tokens.get_admin_session(request)
+        user_id = self.get_user_id(request)
+        if session['uid'] != user_id:
+            yield from self.auth_admin_session(request, Permission.users_view)
+        user_roles = yield from self._get_user_roles(user_id)
+        return [RoleView(dict(role)) for role in user_roles]
+
+    @validate(UpdateUserRolesForm, as_param='lst')
     @asyncio.coroutine
-    def update_user_roles(self):
-        pass
+    def update_user_roles(self, request, lst):
+        """Update user roles.
+        Request: 'PUT', '/admin/users/{uid}/roles'
+        """
+
+        session = yield from self.auth_admin_session(
+            request, Permission.users_roles_edit)
+        user_id = self.get_user_id(request)
+
+        if len(lst) != len(set(lst)):
+            raise JsonBodyValidationError(fields={
+                'roles': 'Duplicates in user roles list'
+            })
+
+        with (yield from self.postgres) as pg_con:
+            transaction = yield from pg_con.begin()
+            try:
+                yield from pg_con.execute(
+                    """
+                    CREATE TEMP TABLE user_roles_temp (
+                    LIKE user_roles INCLUDING DEFAULTS
+                    INCLUDING CONSTRAINTS
+                    INCLUDING INDEXES)
+                    """)
+
+                user_roles_list = ','.join(
+                    '({}, {})'.format(user_id, _) for _ in lst)
+                if user_roles_list:
+                    yield from pg_con.execute(
+                        """
+                        INSERT INTO user_roles_temp (user_id, role_id)
+                        VALUES {};
+                        """.format(user_roles_list))
+
+                result = yield from pg_con.execute(
+                    """
+                    SELECT * FROM roles WHERE id IN
+                    (SELECT role_id FROM user_roles_temp WHERE
+                                        user_id={userid})
+                    """.format(userid=user_id))
+
+                if result.rowcount != len(lst):
+                    yield from transaction.rollback()
+                    valid_ids = [rec.id for rec in result.fetchall()]
+                    invalid_ids = list(set(lst) - set(valid_ids))
+                    raise JsonBodyValidationError(fields={
+                        'roles': "Received invalid ids: {}".format(
+                            invalid_ids
+                        )
+                    })
+
+                where_non_actual_roles = """
+                    WHERE ur.user_id={userid} AND
+                    r.id = ur.role_id AND
+                    ur.role_id NOT IN
+                    (SELECT role_id FROM user_roles_temp WHERE
+                    user_id={userid})
+                    """.format(userid=user_id)
+
+                # drop non actual roles
+                yield from pg_con.execute("""
+                    DELETE FROM user_roles as ur USING roles as r
+                    """ + where_non_actual_roles)
+
+                # drop already in list roles
+                yield from pg_con.execute(
+                    """
+                    DELETE FROM user_roles_temp as t USING user_roles as ur
+                    WHERE t.user_id = ur.user_id AND ur.role_id = t.role_id
+                    """)
+
+                # insert roles
+                yield from pg_con.execute(
+                    """
+                    INSERT INTO user_roles (user_id, role_id)
+                    SELECT user_id, role_id
+                    FROM user_roles_temp
+                    """)
+
+                yield from pg_con.execute("DROP TABLE user_roles_temp;")
+
+            except psycopg2.IntegrityError:
+                yield from transaction.rollback()
+                raise JsonBodyValidationError()
+            else:
+                yield from transaction.commit()
+        roles = yield from self._get_user_roles(user_id)
+
+        yield from self.log_admin_action(request, session, lst)
+
+        return [RoleView(dict(rec)) for rec in roles]
 
     def _get_role_id(self, request):
         return self.matchdict_get(request, 'role_id')
+
+    @asyncio.coroutine
+    def _get_user_roles(self, user_id):
+        perm_query = select([db.roles]).select_from(
+            join(db.roles, db.user_roles,
+                 db.roles.c.id == db.user_roles.c.role_id))
+
+        with (yield from self.postgres) as pg_con:
+            user_roles = yield from pg_con.execute(
+                perm_query.where(db.user_roles.c.user_id == user_id))
+        return user_roles
