@@ -4,11 +4,15 @@ import aiopg
 import psycopg2
 import trafaret as t
 
+from sqlalchemy import select
+
 from maplocate.db import scheme as db
 from .base import BaseHandler
 from .utils import validate, render_json
 from .permissions import Permission
-from .exceptions import ObjectAlreadyExist
+from .exceptions import (ObjectAlreadyExist,
+                         ObjectNotFound,
+                         JsonBodyValidationError)
 
 
 Permissions = t.List(Permission.EnumTrafaret(), min_length=1)
@@ -25,6 +29,12 @@ RoleView = t.Dict({
     t.Key('permissions'): Permissions,
     t.Key('description', default=''): t.String(allow_blank=True,
                                                max_length=64)
+})
+
+UpdateRoleForm = t.Dict({
+    t.Key('role_name', optional=True): t.String(max_length=64),
+    t.Key('permissions', optional=True): Permissions,
+    t.Key('description', optional=True): t.String(max_length=64),
 })
 
 
@@ -84,9 +94,40 @@ class RolesHandler(BaseHandler):
             row = yield from cursor.first()
         return RoleView(dict(row))
 
+    @validate(UpdateRoleForm)
     @asyncio.coroutine
-    def role_update(self):
-        pass
+    def role_update(self, request, form):
+        """Update role.
+        Request: 'PATCH', '/admin/roles/{role_id}'
+        """
+
+        session = yield from self.auth_admin_session(request,
+                                                     Permission.roles_edit)
+        role_id = self._get_role_id(request)
+        updated_role = {}
+        with (yield from self.postgres) as pg_con:
+            try:
+                cursor = yield from pg_con.execute(
+                    select([db.roles])
+                    .where(db.roles.c.id == role_id))
+
+                old_role = yield from cursor.first()
+                if not old_role:
+                    raise ObjectNotFound()
+
+                cursor = yield from pg_con.execute(
+                    db.roles.update()
+                    .returning(*db.roles.c)
+                    .where(db.roles.c.id == role_id)
+                    .values(form))
+
+                updated_role = yield from cursor.first()
+            except psycopg2.IntegrityError:
+                raise JsonBodyValidationError()
+
+        yield from self.log_admin_action(request, session, form)
+
+        return RoleView(dict(updated_role))
 
     @asyncio.coroutine
     def role_delete(self):

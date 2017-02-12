@@ -50,6 +50,8 @@ class BaseHandler:
 
     @asyncio.coroutine
     def log_admin_action(self, request, session, form=""):
+        """Log admin actions for create, update and delete operations"""
+
         actions_log.info(
             "Admin action: %s %s (UID=%s, email=%s) %r",
             request.method, request.path, session['uid'],
