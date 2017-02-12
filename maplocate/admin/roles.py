@@ -44,6 +44,11 @@ class RolesHandler(BaseHandler):
 
     postgres = injections.depends(aiopg.sa.Engine)
 
+    PERMISSION_GROUPS = {
+        'roles': 'Admin role actions',
+        'users': 'Admin user actions'
+    }
+
     @validate(CreateRoleForm)
     @asyncio.coroutine
     def role_create(self, request, form):
@@ -158,6 +163,7 @@ class RolesHandler(BaseHandler):
 
         return {'status': 'deleted'}
 
+    @render_json
     @asyncio.coroutine
     def roles_list(self, request):
         """Get roles list.
@@ -169,9 +175,23 @@ class RolesHandler(BaseHandler):
             result = yield from pg_con.execute(db.roles.select())
         return [RoleView(dict(row)) for row in result]
 
+    @render_json
     @asyncio.coroutine
     def list_permissions(self):
-        pass
+        """List all system permissions.
+        Request: 'GET', '/admin/permissions
+        """
+
+        grouped_permissions = []
+
+        for perm in Permission:
+            prefix, *tail = perm.value.split('_')
+            group = self.PERMISSION_GROUPS.get(prefix, prefix.title())
+            grouped_permissions.append((perm, group))
+
+        return [
+            {'id': perm.name, 'group': group, 'description': perm.description}
+            for perm, group in grouped_permissions]
 
     @asyncio.coroutine
     def get_user_roles(self):

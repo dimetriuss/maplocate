@@ -65,11 +65,11 @@ class Permission(NamingEnum):
     roles_edit = "Edit roles"
 
     # Admin user actions
-    user_view = "View other admin user's profile(s)"
-    user_add = "Register admin user"
-    user_edit = "Edit admin user profile"
-    user_reset_password = "Reset user's password without confirmation"
-    user_roles_edit = "Manage user's roles"
+    users_view = "View other admin user's profile(s)"
+    users_add = "Register admin user"
+    users_edit = "Edit admin user profile"
+    users_reset_password = "Reset user's password without confirmation"
+    users_roles_edit = "Manage user's roles"
 
     @property
     def description(self):
