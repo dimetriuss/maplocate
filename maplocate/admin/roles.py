@@ -159,8 +159,15 @@ class RolesHandler(BaseHandler):
         return {'status': 'deleted'}
 
     @asyncio.coroutine
-    def roles_list(self):
-        pass
+    def roles_list(self, request):
+        """Get roles list.
+        Request: 'GET', '/admin/roles/'
+        """
+
+        yield from self.auth_admin_session(request, Permission.roles_view)
+        with (yield from self.postgres) as pg_con:
+            result = yield from pg_con.execute(db.roles.select())
+        return [RoleView(dict(row)) for row in result]
 
     @asyncio.coroutine
     def list_permissions(self):
