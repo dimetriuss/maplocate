@@ -1,8 +1,9 @@
 import asyncio
 import injections
 
-from maplocate import __version__
+from aiohttp_jinja2 import template
 
+from maplocate import __version__
 from .base import BaseHandler
 
 
@@ -10,8 +11,10 @@ from .base import BaseHandler
 class UsersHandler(BaseHandler):
     """Users and login handler."""
 
+    @template('index.jinja2')
     @asyncio.coroutine
     def index(self, request):
+        """Index page, needed for rendering basic html with app script."""
         return {'APP_VERSION': __version__}
 
     @asyncio.coroutine

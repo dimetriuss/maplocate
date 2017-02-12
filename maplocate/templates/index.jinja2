@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html ng-app="app" ng-strict-di>
+<head lang="en">
+  <base href="/">
+  <meta charset="UTF-8">
+  <title>Maplocate</title>
+
+  <!-- vendor:css -->
+  <link rel="stylesheet" href="/static/admin/css/app.vendor.css">
+  <!-- endinject -->
+  <link rel="stylesheet" href="/static/admin/css/app.css">
+</head>
+<body>
+  <script type="text/javascript">
+    window['VERSION'] = '{{ APP_VERSION }}';
+  </script>
+
+  <div data-ng-controller="LayoutCtrl as vm">
+    <div id="loaderDiv" loader>
+      <div class="image"></div>
+    </div>
+    <header class="clearfix">
+      <div data-ng-include="'app/layout/header.tpl.html'"></div>
+    </header>
+    <section id="content" class="container">
+      <div ui-view></div>
+    </section>
+  </div>
+  <!-- vendor:js -->
+  <script src="/static/admin/js/app.vendor.js"></script>
+  <!-- endinject -->
+
+  <script src="/static/admin/js/app.js"></script>
+  <script src="/static/admin/js/app.tpls.js"></script>
+</body>
+</html>
