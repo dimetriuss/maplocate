@@ -129,9 +129,34 @@ class RolesHandler(BaseHandler):
 
         return RoleView(dict(updated_role))
 
+    @render_json
     @asyncio.coroutine
-    def role_delete(self):
-        pass
+    def role_delete(self, request):
+        """Delete role if it is not assigned to anyone.
+        Request: 'DELETE', '/admin/roles/{role_id}'
+        """
+
+        session = yield from self.auth_admin_session(request,
+                                                     Permission.roles_edit)
+        role_id = self._get_role_id(request)
+        deleted_roles_amount = None
+
+        with (yield from self.postgres) as pg_con:
+            try:
+                cursor = yield from pg_con.execute(
+                    db.roles.delete()
+                    .where(db.roles.c.id == role_id))
+                deleted_roles_amount = cursor.rowcount
+            except psycopg2.IntegrityError:
+                raise JsonBodyValidationError()
+
+        if not deleted_roles_amount:
+            raise ObjectNotFound()
+        assert deleted_roles_amount == 1
+
+        yield from self.log_admin_action(request, session)
+
+        return {'status': 'deleted'}
 
     @asyncio.coroutine
     def roles_list(self):
