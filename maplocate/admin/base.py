@@ -68,3 +68,6 @@ class BaseHandler:
             return traf(value)
         except t.DataError:
             raise ObjectNotFound()
+
+    def get_user_id(self, request):
+        return self._matchdict_get(request, 'uid')
