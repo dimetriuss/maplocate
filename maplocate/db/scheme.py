@@ -5,6 +5,9 @@ __all__ = ['user', 'roles']
 
 meta = sa.MetaData()
 
+# few postgres error codes from docs;
+PG_UNIQUE_VIOLATION = '23505'
+
 user = sa.Table(
     "user", meta,
     sa.Column('id', sa.Integer, nullable=False),
