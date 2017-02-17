@@ -14,7 +14,13 @@ from maplocate import __version__
 from .base import BaseHandler
 from .utils import validate, generate_salt, calculate_hash
 from .permissions import Permission
-from .exceptions import ObjectAlreadyExist
+from .exceptions import (ObjectAlreadyExist, InvalidLogin, UserDisabled)
+
+
+LoginUser = t.Dict({
+    t.Key('username'): t.String(max_length=64),
+    t.Key('password'): t.String(max_length=256),
+})
 
 
 CreateUserForm = t.Dict({
@@ -61,9 +67,35 @@ class UsersHandler(BaseHandler):
         """
         return {'APP_VERSION': __version__}
 
+    @validate(LoginUser, as_kwargs=True)
     @asyncio.coroutine
-    def login(self):
-        pass
+    def login(self, request, username, password):
+        """Verify user's credentials and return new access token and profile.
+        Request: 'POST' '/auth/login'
+        """
+
+        with (yield from self.postgres) as pg_con:
+            row = yield from pg_con.execute(
+                db.user.select().where(db.user.c.login == username))
+            rec = yield from row.first()
+        if not rec:
+            raise InvalidLogin()
+        if rec.disabled:
+            raise UserDisabled()
+
+        pw_hash = calculate_hash(password, rec.salt)
+        if pw_hash != rec.password:
+            raise InvalidLogin()
+
+        token = self.tokens.make_access_token()
+        user = dict(rec)
+        yield from self._add_roles(user)
+        user = UserView(user)
+
+        session = {'uid': rec.id, 'username': rec.login}
+
+        yield from self.tokens.set_admin_session(token, session)
+        return {'access_token': token, 'user': user}
 
     @validate(CreateUserForm)
     @asyncio.coroutine
