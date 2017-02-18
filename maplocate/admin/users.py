@@ -256,9 +256,35 @@ class UsersHandler(BaseHandler):
 
         return UserView(patched_user)
 
+    @render_json
     @asyncio.coroutine
-    def user_delete(self):
-        pass
+    def user_delete(self, request):
+        """Delete user by superadmin.
+        Request: 'DELETE', '/admin/users/{uid}'
+        """
+
+        session = yield from self.tokens.get_admin_session(request)
+        super_user_id = session['uid']
+        user_id = self.get_user_id(request)
+
+        if not (yield from self.permissions.is_superuser(super_user_id)):
+            raise PermissionDenied(reason='Must be superadmin')
+        if (yield from self.permissions.is_superuser(user_id)):
+            raise PermissionDenied(reason='Can not delete superadmin')
+
+        with (yield from self.postgres) as pg_con:
+            cursor = yield from pg_con.execute(
+                db.user.delete()
+                .returning(*db.user.c)
+                .where(db.user.c.id == user_id))
+            deleted_user = yield from cursor.first()
+
+        if not deleted_user:
+            raise ObjectNotFound()
+
+        yield from self.log_admin_action(request, session)
+
+        return {'status': 'deleted'}
 
     @validate(FilterUserForm, check_param='json_body')
     @asyncio.coroutine
