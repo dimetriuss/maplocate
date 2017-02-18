@@ -12,9 +12,10 @@ from sqlalchemy.sql import or_
 from maplocate.db import scheme as db
 from maplocate import __version__
 from .base import BaseHandler
-from .utils import validate, generate_salt, calculate_hash
+from .utils import validate, generate_salt, calculate_hash, render_json
 from .permissions import Permission
-from .exceptions import (ObjectAlreadyExist, InvalidLogin, UserDisabled)
+from .exceptions import (ObjectAlreadyExist, InvalidLogin, UserDisabled,
+                         ObjectNotFound)
 
 
 LoginUser = t.Dict({
@@ -131,9 +132,28 @@ class UsersHandler(BaseHandler):
 
         return UserView(user)
 
+    @render_json
     @asyncio.coroutine
-    def user_details(self):
-        pass
+    def user_details(self, request):
+        """Get user details.
+        Request: 'GET', /admin/users/{uid}'
+        """
+
+        user_id = self.get_user_id(request)
+        yield from self.auth_user_session(user_id, request,
+                                          Permission.users_view)
+        with (yield from self.postgres) as pg_con:
+            cursor = yield from pg_con.execute(
+                db.user.select()
+                .where(db.user.c.id == user_id)
+            )
+            user = yield from cursor.first()
+        if not user:
+            raise ObjectNotFound()
+        user = dict(user)
+        yield from self._add_roles(user)
+
+        return UserView(user)
 
     @asyncio.coroutine
     def user_update(self):
