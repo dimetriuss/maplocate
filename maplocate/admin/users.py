@@ -254,7 +254,7 @@ class UsersHandler(BaseHandler):
 
         yield from self.log_admin_action(request, session, form)
 
-        return UserView(patched_user)   
+        return UserView(patched_user)
 
     @asyncio.coroutine
     def user_delete(self):
