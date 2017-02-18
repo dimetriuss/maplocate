@@ -1,0 +1,8 @@
+postgres:
+  database: maplocate
+  user: maplocate
+  password: maplocate
+
+redis:
+  db: 1
+  address: ['localhost', 6379]

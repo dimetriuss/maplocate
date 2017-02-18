@@ -122,3 +122,23 @@ def validate(traf, *, as_param='form', as_kwargs=False, check_param=None):
                 return func(self, request, *args, **kw)
         return method_wrapper
     return inner
+
+
+@asyncio.coroutine
+def log_errors_middleware(app, handler):
+    @asyncio.coroutine
+    def middleware(request):
+        try:
+            return (yield from handler(request))
+        except web.HTTPClientError as exc:
+            # Log 400 errors
+            body = yield from request.text()
+            if not body and 'json_body' in request.GET:
+                body = request.GET['json_body']
+            log.error(
+                "4XX error in maplocate REST: \n%s. \n"
+                "Original request: \n%s %s (auth_token=%s) %s",
+                exc.text, request.method, request.path,
+                request.headers.get('Authorization'), body)
+            raise
+    return middleware

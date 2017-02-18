@@ -34,7 +34,7 @@ setup(name='maplocate',
               'maplocate = argsrun:main',
               ],
           'maplocate': [
-              'serve-maplocate = maplocate.main:gateway',
+              'serve-admin = maplocate.main:admin_maplocate',
               ]},
       zip_safe=False)
 
