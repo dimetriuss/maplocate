@@ -15,7 +15,8 @@ from .base import BaseHandler
 from .utils import validate, generate_salt, calculate_hash, render_json
 from .permissions import Permission
 from .exceptions import (ObjectAlreadyExist, InvalidLogin, UserDisabled,
-                         ObjectNotFound)
+                         ObjectNotFound, JsonBodyValidationError,
+                         PermissionDenied)
 
 
 LoginUser = t.Dict({
@@ -54,6 +55,27 @@ FilterUserForm = t.Dict({
         t.Key("fullname", default=None, optional=True): t.String | t.Null
     }),
 })
+
+
+UpdateUserForm = t.Dict({
+    t.Key('login', optional=True): t.Email,
+    t.Key('newpassword', optional=True): t.String(allow_blank=True,
+                                                  max_length=256),
+    t.Key('firstname', optional=True): t.String(max_length=64),
+    t.Key('lastname', optional=True): t.String(max_length=64),
+    t.Key('disabled', optional=True): t.Bool(),
+    t.Key('password', optional=True): t.String(max_length=256),
+}).ignore_extra('*')
+
+
+UserPatchParams = t.Dict({
+    t.Key('login', optional=True): t.Email,
+    t.Key('firstname', optional=True): t.String(max_length=64),
+    t.Key('lastname', optional=True): t.String(max_length=64),
+    t.Key('disabled', optional=True): t.Bool(),
+    t.Key('password', optional=True): t.String(max_length=256),
+    t.Key('salt', optional=True): t.String(max_length=256),
+}).ignore_extra('*')
 
 
 @injections.has
@@ -155,9 +177,84 @@ class UsersHandler(BaseHandler):
 
         return UserView(user)
 
+    @validate(UpdateUserForm)
     @asyncio.coroutine
-    def user_update(self):
-        pass
+    def user_update(self, request, form):
+        """Partial user update.
+        Request: 'PATCH', '/admin/users/{uid}'
+        """
+
+        user_id = self.get_user_id(request)
+        session = yield from self.auth_user_session(user_id, request,
+                                                    Permission.users_edit)
+
+        same_user = user_id == session['uid']
+
+        with (yield from self.postgres) as pg_con:
+            cursor = yield from pg_con.execute(
+                db.user.select().where(db.user.c.id == user_id))
+            user = yield from cursor.first()
+            if not user:
+                raise ObjectNotFound()
+
+            if form.get('disabled'):
+                if same_user:
+                    raise JsonBodyValidationError(
+                        fields={'disabled': 'User can not disable himself'})
+                yield from self.tokens.invalidate_admin_session(user_id)
+
+            if 'password' in form and 'newpassword' not in form:
+                raise JsonBodyValidationError(
+                    fields={'newpassword': 'Can not reset password '
+                                           'without newpassword'})
+
+            if 'newpassword' in form:
+                if same_user:
+                    if 'password' in form:
+                        password_hash = calculate_hash(form['password'],
+                                                       user.salt)
+                        if password_hash != user.password:
+                            raise JsonBodyValidationError(
+                                fields={'password': 'Invalid old password'})
+                    else:
+                        raise JsonBodyValidationError(
+                            fields={'newpassword': 'Can not change password '
+                                                   'without old one'})
+                else:
+                    if 'password' in form:
+                        raise JsonBodyValidationError(
+                            fields={'password': 'Do not pass if editing '
+                                                'other users'})
+                    yield from self._check_reset_pass(session['uid'])
+
+                # Checks completed, nothing raised. Changing password.
+                salt = generate_salt()
+                form['password'] = calculate_hash(form['newpassword'], salt)
+                form['salt'] = salt
+
+            patch = UserPatchParams(form)
+            if not patch:
+                raise JsonBodyValidationError("Nothing to update")
+
+            try:
+                cursor = yield from pg_con.execute(
+                    db.user.update()
+                    .returning(*db.user.c)
+                    .values(patch)
+                    .where(db.user.c.id == user.id))
+            except psycopg2.IntegrityError:
+                raise JsonBodyValidationError(
+                    fields={'login': 'User already exists'})
+
+            user = yield from cursor.first()
+            assert user, "Can not patch username"
+
+        patched_user = dict(user)
+        yield from self._add_roles(patched_user)
+
+        yield from self.log_admin_action(request, session, form)
+
+        return UserView(patched_user)
 
     @asyncio.coroutine
     def user_delete(self):
@@ -221,3 +318,13 @@ class UsersHandler(BaseHandler):
             for user_id, roles in itertools.groupby(
                     roles, key=lambda x: x.user_id):
                 user_id_map[user_id]['roles'] = list(map(dict, roles))
+
+    @asyncio.coroutine
+    def _check_reset_pass(self, user_id):
+        try:
+            yield from self.permissions.check(
+                user_id, Permission.user_reset_password)
+        except PermissionDenied:
+            raise
+        else:
+            return True
