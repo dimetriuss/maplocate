@@ -49,6 +49,13 @@ class BaseHandler:
         return session
 
     @asyncio.coroutine
+    def auth_user_session(self, user_id, request, permission):
+        session = yield from self.tokens.get_admin_session(request)
+        if session['uid'] != user_id:
+            yield from self.permissions.check(session['uid'], permission)
+        return session
+
+    @asyncio.coroutine
     def log_admin_action(self, request, session, form=""):
         """Log admin actions for create, update and delete operations"""
 
