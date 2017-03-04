@@ -2,10 +2,14 @@ all: setup doc
 	@echo "SETUP PROJECT AND DOCUMENTATION"
 	
 setup: .pip-freeze
+	-mkdir -p static
+	make -C angular-app
 
 clean:
 	@echo "REMOVE PIP FREEZE, PYCACHE AND CLEAN DOCUMENTATION"
 	rm -f .pip-freeze
+	rm -rf angular-app/node_modules
+	rm -rf angular-app/vendor
 	rm -rf 'find . -name __pycache__'
 	rm -f `find . -type f -name '*.py[co]' `
 	rm -f `find . -type f -name '*~' `
